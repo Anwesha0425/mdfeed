@@ -8,7 +8,7 @@
 
 class OrderBook {
 public:
-    OrderBook(string symbol);
+    OrderBook(std::string symbol);
 
     void update_bid(double price, double qty);
     void update_ask(double price, double qty);
@@ -18,12 +18,12 @@ public:
     double mid_price() const;
     double spread()    const;
 
-    string snapshot() const;
-    string symbol()   const { return symbol_; }
+    std::string snapshot() const;
+    std::string symbol()   const { return symbol_; }
 
 private:
-    string symbol_;
-    map<double, double> bids_;
-    map<double, double> asks_;
-    mutable mutex mtx_;
+    std::string symbol_;
+    std::map<double, double> bids_;
+    std::map<double, double> asks_;
+    mutable std::mutex mtx_;
 };

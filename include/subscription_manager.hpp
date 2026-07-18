@@ -8,15 +8,15 @@
 
 class SubscriptionManager {
 public:
-    void subscribe(int client_id, string symbol);
-    void unsubscribe(int client_id, string symbol);
+    void subscribe(int client_id, std::string symbol);
+    void unsubscribe(int client_id, std::string symbol);
     void remove_client(int client_id);
 
-    vector<int>    get_subscribers(string symbol);
-    vector<string> get_subscriptions(int client_id);
+    std::vector<int>    get_subscribers(std::string symbol);
+    std::vector<std::string> get_subscriptions(int client_id);
 
 private:
-    mutex mtx_;
-    unordered_map<string, unordered_set<int>>    symbol_to_clients_;
-    unordered_map<int,    unordered_set<string>> client_to_symbols_;
+    std::mutex mtx_;
+    std::unordered_map<std::string, std::unordered_set<int>>    symbol_to_clients_;
+    std::unordered_map<int,    std::unordered_set<std::string>> client_to_symbols_;
 };

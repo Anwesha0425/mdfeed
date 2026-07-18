@@ -8,14 +8,14 @@
 #include <random>
 
 struct MarketTick {
-    string symbol;
+    std::string symbol;
     double bid_price;
     double bid_qty;
     double ask_price;
     double ask_qty;
 };
 
-using TickCallback = function<void(MarketTick)>;
+using TickCallback = std::function<void(MarketTick)>;
 
 class FeedSimulator {
 public:
@@ -30,18 +30,18 @@ private:
     double next_price(double current, double sigma);
 
     int               ticks_per_sec_;
-    atomic<bool>      running_;
-    thread            thread_;
+    std::atomic<bool> running_;
+    std::thread       thread_;
     TickCallback      callback_;
 
     struct SymbolState {
-        string name;
+        std::string name;
         double price;
         double sigma;
         double spread_pct;
     };
 
-    vector<SymbolState>         symbols_;
-    mt19937                     rng_;
-    normal_distribution<double> dist_;
+    std::vector<SymbolState>         symbols_;
+    std::mt19937                     rng_;
+    std::normal_distribution<double> dist_;
 };

@@ -215,4 +215,8 @@ If `on_disconnect` ran and removed the session from `g_sessions`, the `shared_pt
 - Config file for symbols, port, tick rate instead of hardcoded values
 
 **Scaling beyond one machine:**
-The thread-per-client model works for tens of clients. To handle hundreds or thousands, the right move is `epoll` with an event loop — one thread handling many connections via level-triggered or edge-triggered events instead of blocking on each socket individually. Real exchange feed handlers at HFT firms bypass the kernel network stack entirely with DPDK or RDMA to get latencies below 1µs, but that's a very different engineering problem from what this project demonstrates.
+## Architecture & Demo
+
+![Demo of mdfeed running](demo.gif)
+
+The core structure is intentionally minimal to limit locking overhead and thread contention. The thread-per-client model works for tens of clients. To handle hundreds or thousands, it would need to move to an event-driven model using `epoll` with non-blocking I/O. Real exchange feed handlers at HFT firms bypass the kernel network stack entirely with DPDK or RDMA to get latencies below 1µs, but that's a very different engineering problem from what this project demonstrates.

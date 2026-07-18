@@ -8,8 +8,8 @@
 #include <string>
 #include <functional>
 
-using DisconnectCb = function<void(int)>;
-using CommandCb    = function<void(int, string, string)>;
+using DisconnectCb = std::function<void(int)>;
+using CommandCb    = std::function<void(int, std::string, std::string)>;
 
 class ClientSession {
 public:
@@ -17,7 +17,7 @@ public:
     ~ClientSession();
 
     void start();
-    void send_message(string msg);
+    void send_message(std::string msg);
 
     int  id()       { return id_; }
     bool is_alive() { return alive_.load(); }
@@ -28,14 +28,14 @@ private:
 
     int          id_;
     int          sockfd_;
-    atomic<bool> alive_;
+    std::atomic<bool> alive_;
 
-    queue<string>           send_queue_;
-    mutex                   queue_mtx_;
-    condition_variable      queue_cv_;
+    std::queue<std::string> send_queue_;
+    std::mutex                   queue_mtx_;
+    std::condition_variable      queue_cv_;
 
-    thread recv_thread_;
-    thread send_thread_;
+    std::thread recv_thread_;
+    std::thread send_thread_;
 
     DisconnectCb on_disconnect_;
     CommandCb    on_command_;
