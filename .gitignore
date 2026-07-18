@@ -1,0 +1,5 @@
+mdfeed-server
+mdfeed-client
+*.o
+*.out
+.DS_Store
