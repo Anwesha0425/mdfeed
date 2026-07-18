@@ -204,6 +204,9 @@ When a client disconnected, the recv thread set `alive_ = false` and exited. But
 **3. Destructor ordering with detached threads**
 If `on_disconnect` ran and removed the session from `g_sessions`, the `shared_ptr` refcount hit zero and the destructor ran from inside `recv_loop`'s thread. The destructor called `detach()` on `recv_thread_` — which is valid (a thread can detach itself) — but calling `join()` on a detached thread is UB. Had to make sure the destructor always uses `detach()` and that `recv_loop` doesn't touch any member variables after the disconnect callback fires.
 
+**4. Unnecessary string copies in SubscriptionManager**
+The C++ linter flagged that `subscription_manager.cpp` was passing strings by value (`string symbol`) instead of by constant reference (`const string& symbol`). Furthermore, a range-based for loop was creating a temporary copy on every iteration (`for (string sym : it->second)`). In a high-throughput system, unnecessary heap allocations and string copies are massive performance bottlenecks. Fixed by updating all signatures to use `const std::string&` and iterating by reference.
+
 ---
 
 ## Things to do next
