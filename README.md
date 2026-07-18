@@ -217,6 +217,27 @@ If `on_disconnect` ran and removed the session from `g_sessions`, the `shared_pt
 **Scaling beyond one machine:**
 ## Architecture & Demo
 
-![Demo of mdfeed running](demo.gif)
+```text
+connected to 127.0.0.1:9001
+commands: sub <SYMBOL>  |  unsub <SYMBOL>  |  heartbeat  |  quit
+
+[server] connected 
+> sub AAPL
+[AAPL]  bid=192.96 (1000)  ask=193.27 (100)  spread=0.31
+[AAPL]  bid=193.84 (200)  ask=194.15 (200)  spread=0.31
+[AAPL]  bid=192.73 (600)  ask=193.04 (100)  spread=0.31
+> sub TSLA
+[AAPL]  bid=189.46 (400)  ask=189.76 (900)  spread=0.30
+[AAPL]  bid=189.65 (300)  ask=189.96 (100)  spread=0.30
+[TSLA]  bid=249.77 (600)  ask=250.52 (600)  spread=0.75
+[AAPL]  bid=186.44 (900)  ask=186.74 (100)  spread=0.30
+[TSLA]  bid=244.21 (700)  ask=244.94 (600)  spread=0.73
+> unsub AAPL
+[TSLA]  bid=254.31 (300)  ask=255.07 (1000)  spread=0.76
+[TSLA]  bid=249.75 (700)  ask=250.50 (400)  spread=0.75
+[TSLA]  bid=253.91 (500)  ask=254.67 (400)  spread=0.76
+> quit
+[client] server closed the connection
+```
 
 The core structure is intentionally minimal to limit locking overhead and thread contention. The thread-per-client model works for tens of clients. To handle hundreds or thousands, it would need to move to an event-driven model using `epoll` with non-blocking I/O. Real exchange feed handlers at HFT firms bypass the kernel network stack entirely with DPDK or RDMA to get latencies below 1µs, but that's a very different engineering problem from what this project demonstrates.
