@@ -8,11 +8,11 @@
 
 class SubscriptionManager {
 public:
-    void subscribe(int client_id, std::string symbol);
-    void unsubscribe(int client_id, std::string symbol);
+    void subscribe(int client_id, const std::string& symbol);
+    void unsubscribe(int client_id, const std::string& symbol);
     void remove_client(int client_id);
 
-    std::vector<int>    get_subscribers(std::string symbol);
+    std::vector<int>    get_subscribers(const std::string& symbol);
     std::vector<std::string> get_subscriptions(int client_id);
 
 private:
