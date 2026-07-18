@@ -106,11 +106,11 @@ make bench
 
 `benchmarks/bench_order_book.cpp` measures order book throughput in isolation (no network, no threads overhead from session management). Typical numbers on a modern Linux machine:
 
-| Measurement | Expected range |
+| Measurement | Expected range (O2 optimized) |
 |---|---|
-| Single-thread update rate | 4–8M updates/sec |
-| Single-thread read rate | 10–20M reads/sec |
-| 4-thread concurrent update rate | 2–5M updates/sec (mutex contention brings this down) |
+| Single-thread update rate | ~50M updates/sec |
+| Single-thread read rate | ~100-120M reads/sec |
+| 4-thread concurrent update rate | ~10-15M updates/sec (mutex contention brings this down) |
 
 These are in-process numbers. The bottleneck in the actual server is the network and the per-client thread overhead, not the order book itself.
 
