@@ -17,7 +17,7 @@ CLIENT_SRCS = $(SRC)/protocol.cpp \
 SERVER_BIN = mdfeed-server
 CLIENT_BIN = mdfeed-client
 
-.PHONY: all server client clean asan tsan
+.PHONY: all server client test bench clean asan tsan
 
 all: server client
 
@@ -27,6 +27,14 @@ server: $(SERVER_SRCS)
 client: $(CLIENT_SRCS)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -o $(CLIENT_BIN) $(CLIENT_SRCS)
 
+test:
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -o run_tests tests/test_order_book.cpp $(SRC)/order_book.cpp
+	./run_tests
+
+bench:
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -o run_bench benchmarks/bench_order_book.cpp $(SRC)/order_book.cpp
+	./run_bench
+
 asan: CXXFLAGS += -fsanitize=address -fno-omit-frame-pointer -g
 asan: all
 
@@ -34,4 +42,4 @@ tsan: CXXFLAGS += -fsanitize=thread -fno-omit-frame-pointer -g
 tsan: all
 
 clean:
-	rm -f $(SERVER_BIN) $(CLIENT_BIN)
+	rm -f $(SERVER_BIN) $(CLIENT_BIN) run_tests run_bench
