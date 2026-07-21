@@ -1,273 +1,103 @@
 # mdfeed
 
-A real-time market data distribution server built in C++17 using POSIX TCP sockets and threads. No external libraries.
-
-The idea came from learning about how trading firms stream live price data to multiple internal clients — this is a simplified version of that: a server that accepts connections, simulates live stock prices, and pushes bid/ask updates to clients that subscribe to specific symbols.
-
----
+A real-time market data distribution server in C++17 using POSIX TCP sockets 
+and threads. No external libraries.
 
 ## What it does
-
-- Accepts multiple TCP client connections (one thread pair per client)
-- Simulates live bid/ask prices for 6 symbols: `AAPL`, `MSFT`, `GOOGL`, `TSLA`, `SPY`, `NVDA`
-- Clients subscribe to symbols they care about and get real-time order book updates
-- Detects sequence number gaps on the client side (prints a warning if ticks were missed)
+- Multi-client TCP server; one recv/send thread pair per client
+- Simulates bid/ask prices for 6 symbols via Geometric Brownian Motion
+- Clients subscribe to symbols and receive live order book updates
+- Per-tick microsecond latency reported client-side
+- Sequence-number gap detection with automatic replay request
+- Server retains a 1,000-message sliding replay buffer per symbol
+- Thread-safe order book via `std::shared_mutex` (concurrent reads, exclusive writes)
+- Server-side console telemetry: updates/sec, messages/sec, active clients, subscriptions
 - Graceful shutdown on Ctrl-C
-- Cloud-ready (tested and deployed on AWS EC2 Ubuntu t3.micro instances)
 
----
+## Build & Run
+**Prerequisites:** The project utilizes raw POSIX sockets (`<sys/socket.h>`) and requires a Linux environment or Windows Subsystem for Linux (WSL).
 
-## How to build
+1.  **Clone & Build:**
+    ```bash
+    git clone https://github.com/Anwesha0425/mdfeed.git
+    cd mdfeed
+    make
+    ```
 
-Requires Linux, `g++` with C++17, and `pthread`.
+2.  **Start the Server:**
+    ```bash
+    ./mdfeed-server
+    ```
 
-```bash
-make          # builds server and client
-make test     # runs order book unit tests
-make bench    # runs order book throughput benchmark
-make asan     # AddressSanitizer build
-make tsan     # ThreadSanitizer build
-make clean
-```
-
----
-
-## How to run
-
-**Start the server:**
-```bash
-./mdfeed-server
-./mdfeed-server 9002    # custom port
-```
-
-**Connect a client (open a new terminal):**
-```bash
-./mdfeed-client
-./mdfeed-client 127.0.0.1 9002
-```
-
-**Client commands:**
-```
-sub AAPL       start receiving AAPL updates
-sub TSLA       start receiving TSLA updates
-unsub AAPL     stop AAPL updates
-heartbeat      ping the server
-quit           disconnect
-```
-
-**Example session:**
-```text
-connected to 127.0.0.1:9001
-commands: sub <SYMBOL>  |  unsub <SYMBOL>  |  heartbeat  |  quit
-
-[server] connected 
-> sub AAPL
-[AAPL]  bid=192.96 (1000)  ask=193.27 (100)  spread=0.31
-[AAPL]  bid=193.84 (200)  ask=194.15 (200)  spread=0.31
-[AAPL]  bid=192.73 (600)  ask=193.04 (100)  spread=0.31
-> sub TSLA
-[AAPL]  bid=189.46 (400)  ask=189.76 (900)  spread=0.30
-[AAPL]  bid=189.65 (300)  ask=189.96 (100)  spread=0.30
-[TSLA]  bid=249.77 (600)  ask=250.52 (600)  spread=0.75
-[AAPL]  bid=186.44 (900)  ask=186.74 (100)  spread=0.30
-[TSLA]  bid=244.21 (700)  ask=244.94 (600)  spread=0.73
-> unsub AAPL
-[TSLA]  bid=254.31 (300)  ask=255.07 (1000)  spread=0.76
-[TSLA]  bid=249.75 (700)  ask=250.50 (400)  spread=0.75
-[TSLA]  bid=253.91 (500)  ask=254.67 (400)  spread=0.76
-> quit
-[client] server closed the connection
-```
-
----
-
-## Tests
-
-```bash
-make test
-```
-
-`tests/test_order_book.cpp` covers:
-- Empty book returns zero for all accessors
-- Correct best bid and best ask with single levels
-- Correct best levels when multiple price levels exist
-- Removing a level (qty=0) works correctly
-- Snapshot output contains the right prices
-- Concurrent writes from 8 threads don't corrupt state
-
-The concurrent test is also a sanity check before running TSan — if it passes consistently under repeat runs, the locking is at least not obviously broken.
-
----
+3.  **Start the Client (in a separate terminal):**
+    ```bash
+    ./mdfeed-client
+    ```
 
 ## Benchmarks
 
-```bash
-make bench
-```
-
-`benchmarks/bench_order_book.cpp` measures order book throughput in isolation (no network, no threads overhead from session management). Typical numbers on a modern Linux machine:
-
-| Measurement | Expected range (O2 optimized) |
-|---|---|
-| Single-thread update rate | ~50M updates/sec |
-| Single-thread read rate | ~100-120M reads/sec |
-| 4-thread concurrent update rate | ~10-15M updates/sec (mutex contention brings this down) |
-
-These are in-process numbers. The bottleneck in the actual server is the network and the per-client thread overhead, not the order book itself.
-
-**End-to-end tick-to-client latency** (loopback, not yet measured):
-
-To measure this properly, add `steady_clock::now()` timestamps at tick generation in `FeedSimulator::run()` and at client receipt in `recv_loop()`, encode them in the UPDATE message, and print the diff on the client side. Expected range on loopback: **30–70µs** (dominated by `recv()` syscall overhead and thread scheduling, not the order book).
-
-I have not run a sustained load test to find the ceiling yet — that's the next thing to do.
-
----
-
-## Concurrency and TSan
-
-`make tsan` builds with `-fsanitize=thread`. To run it properly:
-
-```bash
-make tsan
-./mdfeed-server &
-./mdfeed-client   # subscribe to a few symbols, let it run 30 seconds, then quit
-```
-
-I have run `make tsan` on both the client and server under concurrent load. The global maps in `server.cpp` (like `g_sessions` and `g_books`) are each correctly protected by their respective mutexes (`g_sessions_mtx` and `g_books_mtx`). TSan reported **zero data races** and no thread safety violations during simulated multi-client load.
-
----
-
-## Project structure
+Run with `make bench`. Actual output on WSL Ubuntu 22.04:
 
 ```
-mdfeed/
-├── include/
-│   ├── protocol.hpp
-│   ├── order_book.hpp
-│   ├── feed_simulator.hpp
-│   ├── subscription_manager.hpp
-│   └── client_session.hpp
-├── src/
-│   ├── protocol.cpp
-│   ├── order_book.cpp
-│   ├── feed_simulator.cpp
-│   ├── subscription_manager.cpp
-│   ├── client_session.cpp
-│   ├── server.cpp
-│   └── client.cpp
-├── tests/
-│   └── test_order_book.cpp
-├── benchmarks/
-│   └── bench_order_book.cpp
-├── Makefile
-└── README.md
+order book throughput benchmark
+--------------------------------
+single-thread update rate:  26M updates/sec  (2000000 ops in 77ms)
+single-thread read rate:    37M reads/sec  (4000000 reads in 107ms)
+4-thread concurrent rate:   5M updates/sec  (4000000 ops in 820ms)
+
+note: this measures the order book in isolation (no network).
+for end-to-end latency, run the server and client separately
+and compare timestamps in the feed vs client output.
 ```
 
----
+## ThreadSanitizer
 
-## Design decisions
+Ran with 4 concurrent clients over 60 seconds, each subscribing/unsubscribing 
+repeatedly during the run. Found a use-after-free race condition in the 
+destructor (since fixed):
 
-**Why one thread per client?**
-Simple to reason about and debug. A thread blocks on `recv()` while the send thread drains a queue independently. For a small number of clients (tested up to ~10 concurrent) this works fine. At higher scale, this would need to move to an event-driven model with `epoll`.
+```
+WARNING: ThreadSanitizer: data race (pid=565)
+  Write of size 8 at 0x7244000003d8 by thread T3:
+    #17 std::map::erase /usr/include/c++/15/bits/stl_map.h:1159
+    #18 on_disconnect(int) src/server.cpp:191
 
-**Why mutex + condition_variable for the send queue?**
-The send thread sleeps when there's nothing to write instead of spinning. It wakes up as soon as a message is enqueued. Straightforward, correct, and the right call at this scale.
+  Previous atomic read of size 1 at 0x7244000003d8 by thread T4:
+    #0 std::__atomic_base<bool>::load /usr/include/c++/15/bits/atomic_base.h:501
+    #1 ClientSession::send_loop() src/client_session.cpp:79
 
-**Why regular mutex on the order book instead of shared_mutex?**
-I started with `shared_mutex` (allows multiple concurrent readers). Switched to a plain mutex for two reasons: at 5 ticks/sec and a small number of clients, the reader contention that `shared_mutex` solves simply doesn't exist; and `shared_mutex` adds complexity with almost no measurable benefit at this load. If throughput requirements went up by 100x, revisit it — but not before measuring that it's actually the bottleneck.
-
-**What happened to the SPSC lock-free ring buffer from the original design?**
-The original plan included a lock-free ring buffer between the feed simulator and the server. I removed it because the feed callback runs synchronously on the feed thread and the mutex on the order book handles the write. Adding a ring buffer would have decoupled feed generation from order book writes, but at 5 ticks/sec and a non-blocking callback, it would have been complexity for its own sake. If the feed were producing at 100k+ ticks/sec and I had evidence the mutex was a bottleneck, it would be worth adding.
-
-**Why `TCP_NODELAY`?**
-Without it, the OS buffers small packets and batches them together (Nagle's algorithm). For tick data you want each message sent immediately, so this disables that buffering.
-
-**Why `SO_REUSEADDR`?**
-Lets the server restart on the same port immediately without waiting for TIME_WAIT to expire.
-
-**Why pipe-delimited protocol?**
-Inspired by FIX protocol used at exchanges. Each message: `TYPE|SYMBOL|DATA|SEQNUM\n`. The sequence number lets the client detect if it missed a tick — the client prints a warning if the numbers aren't consecutive.
-
-**Price simulation**
-Uses a simplified Geometric Brownian Motion: `new_price = old_price * exp(sigma * Z)` where `Z ~ N(0,1)`. This is the same model underlying Black-Scholes. Each symbol has a different volatility — TSLA and NVDA are noisier than SPY.
-
----
-
-## Bugs I hit during development
-
-**1. Server crashing on restart with "address already in use"**
-`bind()` was failing because the port was in TIME_WAIT after the previous process closed. Fixed by adding `SO_REUSEADDR` on the server socket before `bind()`. Obvious in hindsight.
-
-**2. send_loop stuck forever after client disconnect**
-When a client disconnected, the recv thread set `alive_ = false` and exited. But the send thread was blocked on `queue_cv_.wait()` and never woke up — because nothing called `queue_cv_.notify_all()` after setting the flag. Fixed by calling `queue_cv_.notify_all()` from `recv_loop` before the disconnect callback. The condition variable's predicate checks `!alive_`, so once notified it exits cleanly.
-
-**3. Destructor ordering with detached threads**
-If `on_disconnect` ran and removed the session from `g_sessions`, the `shared_ptr` refcount hit zero and the destructor ran from inside `recv_loop`'s thread. The destructor called `detach()` on `recv_thread_` — which is valid (a thread can detach itself) — but calling `join()` on a detached thread is UB. Had to make sure the destructor always uses `detach()` and that `recv_loop` doesn't touch any member variables after the disconnect callback fires.
-
-**4. Unnecessary string copies in SubscriptionManager**
-The C++ linter flagged that `subscription_manager.cpp` was passing strings by value (`string symbol`) instead of by constant reference (`const string& symbol`). Furthermore, a range-based for loop was creating a temporary copy on every iteration (`for (string sym : it->second)`). In a high-throughput system, unnecessary heap allocations and string copies are massive performance bottlenecks. Fixed by updating all signatures to use `const std::string&` and iterating by reference.
-
----
-
-## Things to do next
-
-**Immediate:**
-- Run TSan under sustained load (multiple clients, 60 seconds) and fix what it finds. Document findings here.
-- Find the tick rate at which the server starts dropping or delaying messages.
-
----
-
-## Recent Infrastructure Upgrades (v2)
-
-The project has been upgraded from a basic server to a resilient infrastructure project with the following features:
-
-1. **Real Sequence Numbers:** Monotonically increasing sequence numbers per symbol (`uint64_t`) to track updates.
-2. **Replay Buffer:** The server maintains a sliding window of the last 1000 messages for each symbol in memory.
-3. **Automatic Gap Recovery:** If a client detects a sequence gap (TCP packet loss or late join), it automatically issues a `REPLAY_REQUEST`, and the server seamlessly recovers the client by streaming the missing ticks.
-4. **Shared Mutex Order Book:** The order book now utilizes `std::shared_mutex`, enabling multiple clients to read snapshots concurrently without blocking each other, while writes are strictly synchronized using `std::unique_lock`.
-5. **Metrics Dashboard:** A dedicated background thread tracks and prints `Updates/sec`, `Messages/sec`, active connections, and total subscriptions atomically without slowing down the critical path.
-6. **Latency Measurement:** High-resolution timestamps (`uint64_t` microseconds since epoch) are attached to `UPDATE` ticks when generated, allowing the client to measure accurate end-to-end latency natively upon receipt.
-7. **Top 10 Order Book:** Snapshots have been upgraded from showing 5 arbitrary levels to correctly sorting and rendering the top 10 price levels (lowest asks and highest bids).
-
-### Example: Live Updates with Latency & Top 10 Snapshot
-
-```text
-> sub AAPL
-[AAPL]  bid=105.00 (100)  ask=105.10 (50)  spread=0.10  latency=0.32ms
-[AAPL]  bid=104.99 (200)  ask=105.10 (50)  spread=0.11  latency=0.35ms
-
-> snap AAPL
-  ASK
-      105.19   qty   100
-      105.18   qty   120
-      105.17   qty   300
-      105.16   qty   150
-      105.15   qty   200
-      105.14   qty   100
-      105.13   qty    50
-      105.12   qty   300
-      105.11   qty   100
-      105.10   qty    50
-  ----------
-  BID
-      105.00   qty   100
-      104.99   qty   200
-      104.98   qty   300
-      104.97   qty    50
-      104.96   qty   150
-      104.95   qty   400
-      104.94   qty   120
-      104.93   qty   100
-      104.92   qty   500
-      104.91   qty    50
+SUMMARY: ThreadSanitizer: data race src/server.cpp:191 in on_disconnect(int)
 ```
 
----
+Fixed by joining the detached send thread before destroying the session. Subsequent runs exit cleanly with no warnings.
 
-**Larger additions:**
-- Per-symbol stats exposed to clients (tick rate, high/low, last price)
-- Historical tick replay: write ticks to a file, add `--replay <file>` mode so the feed replays real data instead of simulated GBM
-- Config file for symbols, port, tick rate instead of hardcoded values
+## Concurrency Design
+- **Order book: `shared_mutex`.** Multiple clients can read concurrently 
+  (`shared_lock`); updates take exclusive access (`unique_lock`). Verified 
+  correct via the concurrent order book test and TSan.
+- **Send queue: `mutex` + `condition_variable`** per client, so idle send 
+  threads sleep instead of spin.
+- **Subscription manager: plain `mutex`** — no read/write split needed here; 
+  subscribe/unsubscribe are infrequent relative to the tick rate.
 
-**Scaling beyond one machine:**
-The core structure is intentionally minimal to limit locking overhead and thread contention. The thread-per-client model works for tens of clients. To handle hundreds or thousands, it would need to move to an event-driven model using `epoll` with non-blocking I/O. Real exchange feed handlers at HFT firms bypass the kernel network stack entirely with DPDK or RDMA to get latencies below 1µs, but that's a very different engineering problem from what this project demonstrates.
+## Known Limitations
+**Replay/live interleaving can cause false-positive gap detection.** Replayed 
+historical messages use the same `UPDATE` type as live ticks, and delivery 
+order between the feed thread and the replay-request handler isn't 
+synchronized — so a replay burst can arrive interleaved with newer live ticks, 
+and the client's naive sequence check can misinterpret this as a second gap. 
+Found this by tracing the replay path by hand, not via TSan (it's a protocol 
+logic issue, not a data race). Fix would be tagging replay messages distinctly 
+so the client skips gap-checking on them.
+
+## Bugs Found During Development
+1. **"Address already in use" on Server Restart:** `bind()` failed because the port was stuck in `TIME_WAIT` after closing. Fixed by setting `SO_REUSEADDR` on the socket.
+2. **The Deadlocked Send Thread:** When a client disconnected, the send thread slept forever on `queue_cv_.wait()`. Fixed by calling `notify_all()` during disconnect.
+3. **The UB Detached Destructor Race:** When a client disconnected, the session destructor was destroying the object while the background threads were still running. Fixed by carefully joining all threads and checking thread IDs to prevent self-join deadlocks.
+
+## Things to add next
+- Fix the replay/live interleaving issue above
+- Real end-to-end latency numbers under sustained multi-client load (not just 
+  in-process order book benchmarks)
+- Event-driven (epoll) model for higher client counts
+- UDP multicast transport for authentic exchange-style dissemination
