@@ -8,8 +8,10 @@
 #include <string>
 #include <functional>
 
+#include "protocol.hpp"
+
 using DisconnectCb = std::function<void(int)>;
-using CommandCb    = std::function<void(int, std::string, std::string)>;
+using CommandCb    = std::function<void(int, Message)>;
 
 class ClientSession {
 public:

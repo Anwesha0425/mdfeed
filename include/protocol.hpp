@@ -11,6 +11,7 @@ enum class MsgType {
     UPDATE,
     HEARTBEAT,
     ERROR_MSG,
+    REPLAY_REQUEST,
     UNKNOWN
 };
 
@@ -18,7 +19,8 @@ struct Message {
     MsgType type   = MsgType::UNKNOWN;
     std::string  symbol;
     std::string  data;
-    int     seq_num = 0;
+    uint64_t     seq_num = 0;
+    uint64_t     timestamp = 0;
 };
 
 std::string  encode_message(Message msg);

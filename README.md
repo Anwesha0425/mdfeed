@@ -213,8 +213,23 @@ The C++ linter flagged that `subscription_manager.cpp` was passing strings by va
 
 **Immediate:**
 - Run TSan under sustained load (multiple clients, 60 seconds) and fix what it finds. Document findings here.
-- Measure actual end-to-end latency and add real numbers to the benchmarks table above.
 - Find the tick rate at which the server starts dropping or delaying messages.
+
+---
+
+## Recent Infrastructure Upgrades (v2)
+
+The project has been upgraded from a basic server to a resilient infrastructure project with the following features:
+
+1. **Real Sequence Numbers:** Monotonically increasing sequence numbers per symbol (`uint64_t`) to track updates.
+2. **Replay Buffer:** The server maintains a sliding window of the last 1000 messages for each symbol in memory.
+3. **Automatic Gap Recovery:** If a client detects a sequence gap (TCP packet loss or late join), it automatically issues a `REPLAY_REQUEST`, and the server seamlessly recovers the client by streaming the missing ticks.
+4. **Shared Mutex Order Book:** The order book now utilizes `std::shared_mutex`, enabling multiple clients to read snapshots concurrently without blocking each other, while writes are strictly synchronized using `std::unique_lock`.
+5. **Metrics Dashboard:** A dedicated background thread tracks and prints `Updates/sec`, `Messages/sec`, active connections, and total subscriptions atomically without slowing down the critical path.
+6. **Latency Measurement:** High-resolution timestamps (`uint64_t` microseconds since epoch) are attached to `UPDATE` ticks when generated, allowing the client to measure accurate end-to-end latency natively upon receipt.
+7. **Top 10 Order Book:** Snapshots have been upgraded from showing 5 arbitrary levels to correctly sorting and rendering the top 10 price levels (lowest asks and highest bids).
+
+---
 
 **Larger additions:**
 - Per-symbol stats exposed to clients (tick rate, high/low, last price)

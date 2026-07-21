@@ -14,6 +14,7 @@ string msg_type_to_str(MsgType t) {
         case MsgType::UPDATE:      return "UPDATE";
         case MsgType::HEARTBEAT:   return "HEARTBEAT";
         case MsgType::ERROR_MSG:   return "ERROR";
+        case MsgType::REPLAY_REQUEST: return "REPLAY_REQUEST";
         default:                   return "UNKNOWN";
     }
 }
@@ -27,6 +28,7 @@ MsgType str_to_msg_type(string s) {
     if (s == "UPDATE")      return MsgType::UPDATE;
     if (s == "HEARTBEAT")   return MsgType::HEARTBEAT;
     if (s == "ERROR")       return MsgType::ERROR_MSG;
+    if (s == "REPLAY_REQUEST") return MsgType::REPLAY_REQUEST;
     return MsgType::UNKNOWN;
 }
 
@@ -35,7 +37,8 @@ string encode_message(Message msg) {
     oss << msg_type_to_str(msg.type) << "|"
         << msg.symbol << "|"
         << msg.data   << "|"
-        << msg.seq_num << "\n";
+        << msg.seq_num << "|"
+        << msg.timestamp << "\n";
     return oss.str();
 }
 
@@ -58,9 +61,17 @@ Message decode_message(string raw) {
     msg.data    = parts[2];
 
     try {
-        msg.seq_num = stoi(parts[3]);
+        msg.seq_num = stoull(parts[3]);
     } catch (...) {
         msg.seq_num = 0;
+    }
+
+    if (parts.size() >= 5) {
+        try {
+            msg.timestamp = stoull(parts[4]);
+        } catch (...) {
+            msg.timestamp = 0;
+        }
     }
 
     return msg;

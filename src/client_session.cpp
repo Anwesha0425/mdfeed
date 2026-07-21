@@ -57,10 +57,10 @@ void ClientSession::recv_loop() {
 
             Message msg = decode_message(line);
 
-            if (msg.type == MsgType::SUBSCRIBE || msg.type == MsgType::UNSUBSCRIBE) {
-                on_command_(id_, msg_type_to_str(msg.type), msg.symbol);
+            if (msg.type == MsgType::SUBSCRIBE || msg.type == MsgType::UNSUBSCRIBE || msg.type == MsgType::REPLAY_REQUEST) {
+                on_command_(id_, msg);
             } else if (msg.type == MsgType::HEARTBEAT) {
-                on_command_(id_, "HEARTBEAT", "");
+                on_command_(id_, msg);
             } else if (msg.type == MsgType::LOGOUT) {
                 alive_ = false;
             }

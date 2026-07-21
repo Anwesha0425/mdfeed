@@ -2,6 +2,7 @@
 
 #include <map>
 #include <mutex>
+#include <shared_mutex>
 #include <string>
 #include <sstream>
 #include <iomanip>
@@ -25,5 +26,5 @@ private:
     std::string symbol_;
     std::map<double, double> bids_;
     std::map<double, double> asks_;
-    mutable std::mutex mtx_;
+    mutable std::shared_mutex mtx_;
 };

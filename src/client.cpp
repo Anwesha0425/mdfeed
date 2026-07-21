@@ -6,6 +6,7 @@
 #include <atomic>
 #include <map>
 #include <algorithm>
+#include <chrono>
 
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -18,7 +19,7 @@ using namespace std;
 
 atomic<bool> g_running{true};
 
-map<string, int> last_seq;
+map<string, uint64_t> last_seq;
 
 void recv_loop(int sockfd) {
     char buf[4096];
@@ -43,10 +44,17 @@ void recv_loop(int sockfd) {
             Message msg = decode_message(line);
 
             if (msg.type == MsgType::UPDATE && msg.seq_num > 0) {
-                int prev = last_seq[msg.symbol];
-                if (prev > 0 && msg.seq_num != prev + 1)
+                uint64_t prev = last_seq[msg.symbol];
+                if (prev > 0 && msg.seq_num != prev + 1) {
                     cout << "[gap] " << msg.symbol << " missed seq "
-                         << prev + 1 << " to " << msg.seq_num - 1 << "\n";
+                         << prev + 1 << " to " << msg.seq_num - 1 << ". Requesting replay...\n";
+                    Message req;
+                    req.type = MsgType::REPLAY_REQUEST;
+                    req.symbol = msg.symbol;
+                    req.data = to_string(prev + 1) + ":" + to_string(msg.seq_num - 1);
+                    string enc = encode_message(req);
+                    send(sockfd, enc.c_str(), enc.size(), 0);
+                }
                 last_seq[msg.symbol] = msg.seq_num;
             }
 
@@ -59,6 +67,14 @@ void recv_loop(int sockfd) {
                 cout << "+---------------------------+\n\n";
 
             } else if (msg.type == MsgType::UPDATE) {
+                uint64_t now = chrono::duration_cast<chrono::microseconds>(
+                                   chrono::system_clock::now().time_since_epoch()
+                               ).count();
+                double latency_ms = 0.0;
+                if (msg.timestamp > 0 && now >= msg.timestamp) {
+                    latency_ms = (now - msg.timestamp) / 1000.0;
+                }
+
                 istringstream iss(msg.data);
                 string bp, bq, ap, aq;
                 getline(iss, bp, ':');
@@ -74,7 +90,11 @@ void recv_loop(int sockfd) {
                     cout << "[" << msg.symbol << "]"
                          << "  bid=" << fixed << setprecision(2) << bid << " (" << bqv << ")"
                          << "  ask=" << ask << " (" << aqv << ")"
-                         << "  spread=" << (ask - bid) << "\n";
+                         << "  spread=" << (ask - bid);
+                    if (latency_ms > 0) {
+                        cout << "  latency=" << latency_ms << "ms";
+                    }
+                    cout << "\n";
                 } catch (...) {
                     cout << "[" << msg.symbol << "] " << msg.data << "\n";
                 }
