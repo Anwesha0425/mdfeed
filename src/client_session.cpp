@@ -19,8 +19,22 @@ ClientSession::~ClientSession() {
     alive_ = false;
     queue_cv_.notify_all();
     close(sockfd_);
-    if (recv_thread_.joinable()) recv_thread_.detach();
-    if (send_thread_.joinable()) send_thread_.detach();
+    
+    if (recv_thread_.joinable()) {
+        if (std::this_thread::get_id() == recv_thread_.get_id()) {
+            recv_thread_.detach();
+        } else {
+            recv_thread_.join();
+        }
+    }
+    
+    if (send_thread_.joinable()) {
+        if (std::this_thread::get_id() == send_thread_.get_id()) {
+            send_thread_.detach();
+        } else {
+            send_thread_.join();
+        }
+    }
 }
 
 void ClientSession::start() {

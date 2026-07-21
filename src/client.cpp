@@ -184,7 +184,8 @@ int main(int argc, char* argv[]) {
         send(sockfd, enc.c_str(), enc.size(), 0);
     }
 
-    close(sockfd);
+    shutdown(sockfd, SHUT_RDWR);
     if (recv_t.joinable()) recv_t.join();
+    close(sockfd);
     return 0;
 }
