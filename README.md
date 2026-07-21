@@ -229,6 +229,39 @@ The project has been upgraded from a basic server to a resilient infrastructure 
 6. **Latency Measurement:** High-resolution timestamps (`uint64_t` microseconds since epoch) are attached to `UPDATE` ticks when generated, allowing the client to measure accurate end-to-end latency natively upon receipt.
 7. **Top 10 Order Book:** Snapshots have been upgraded from showing 5 arbitrary levels to correctly sorting and rendering the top 10 price levels (lowest asks and highest bids).
 
+### Example: Live Updates with Latency & Top 10 Snapshot
+
+```text
+> sub AAPL
+[AAPL]  bid=105.00 (100)  ask=105.10 (50)  spread=0.10  latency=0.32ms
+[AAPL]  bid=104.99 (200)  ask=105.10 (50)  spread=0.11  latency=0.35ms
+
+> snap AAPL
+  ASK
+      105.19   qty   100
+      105.18   qty   120
+      105.17   qty   300
+      105.16   qty   150
+      105.15   qty   200
+      105.14   qty   100
+      105.13   qty    50
+      105.12   qty   300
+      105.11   qty   100
+      105.10   qty    50
+  ----------
+  BID
+      105.00   qty   100
+      104.99   qty   200
+      104.98   qty   300
+      104.97   qty    50
+      104.96   qty   150
+      104.95   qty   400
+      104.94   qty   120
+      104.93   qty   100
+      104.92   qty   500
+      104.91   qty    50
+```
+
 ---
 
 **Larger additions:**
